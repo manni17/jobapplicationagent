@@ -1,0 +1,27 @@
+{
+  "name": "job-application-agent",
+  "version": "0.1.0",
+  "description": "Local-first Windows 10 job-application agent with Telegram control and cloud LLM scoring",
+  "main": "src/index.js",
+  "scripts": {
+     "start": "node --no-warnings src/index.js",
+     "dev": "nodemon --exec \"node --no-warnings\" src/index.js",
+     "init-db": "node --no-warnings scripts/init-db.js",
+     "validate": "node --no-warnings scripts/validate-phase0.js",
+    "install:playwright": "npx playwright install chromium",
+    "linkedin-login": "node --no-warnings scripts/linkedin-login.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "playwright": "^1.42.1",
+    "winston": "^3.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=22.10.0"
+  }
+}

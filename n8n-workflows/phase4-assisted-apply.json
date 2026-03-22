@@ -1,0 +1,164 @@
+{
+  "name": "Phase 4 — Playwright-Assisted Apply",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [160, 300],
+      "webhookId": "phase4-tg-webhook",
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text   = ($input.item.json.message?.text || '').trim();\nconst chatId = $input.item.json.message?.chat?.id;\n\nlet command = 'passthrough';\nlet jobId   = null;\n\nif (text.startsWith('/apply '))   { command = 'apply';   jobId = parseInt(text.split(' ')[1], 10); }\nif (text.startsWith('/relogin'))  { command = 'relogin'; }\n\nreturn { json: { command, jobId, chatId } };"
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000002",
+      "name": "Parse Apply Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 300]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "apply",   "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "apply"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "relogin", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "relogin"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000003",
+      "name": "Route Apply",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:{{ $env.PORT || '3000' }}/api/sessions/linkedin",
+        "options": {}
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000004",
+      "name": "Check Session Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 180]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue":  "={{ $json.status }}",
+              "rightValue": "healthy",
+              "operator":   { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000005",
+      "name": "Session Healthy?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1060, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── PHASE 4 PLAYWRIGHT APPLY PLACEHOLDER ────────────────────────────\n// This node executes playwright/browser.js to submit the application.\n// Steps to implement:\n//   1. getBrowser() → persistent Chromium context\n//   2. checkSessionHealth() → if not healthy, abort + alert\n//   3. Navigate to job URL\n//   4. Click 'Easy Apply' button\n//   5. Fill form fields from application record\n//   6. STOP before final submit — wait for human /approve\n//   7. After approval: click Submit\n//   8. captureScreenshot() → save evidence\n//   9. PATCH /api/applications/:id with status=submitted + screenshot_path\n//  10. Increment consecutive_failures on error; auto-pause after MAX_CONSECUTIVE_FAILURES\n//\n// Auto-pause logic:\n//   if (consecutive_failures >= MAX_CONSECUTIVE_FAILURES) send alert + set session.status = 'error'\n//\n// This stub returns a mock success until Phase 4 is implemented.\nconst jobId = $('Parse Apply Command').item.json.jobId;\nreturn { json: { note: 'Playwright apply not yet implemented — Phase 4 required', job_id: jobId } };"
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000006",
+      "name": "Playwright Apply [STUB]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 120]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Apply Command').item.json.chatId }}",
+        "text": "⚠️ LinkedIn session is not healthy (status: {{ $json.status }}).\nRun /relogin to re-authenticate before applying.",
+        "additionalFields": {}
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000007",
+      "name": "Alert: Session Unhealthy",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1280, 260],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Apply Command').item.json.chatId }}",
+        "text": "=🤖 Apply flow result:\n{{ $json.note || 'Check server logs for details.' }}",
+        "additionalFields": {}
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000008",
+      "name": "Send Apply Result",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1500, 120],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Apply Command').item.json.chatId }}",
+        "text": "🔑 Relogin flow not yet implemented (Phase 4).\n\nFor now, manually open the Playwright profile directory and sign in to LinkedIn:\n1. Set PLAYWRIGHT_HEADLESS=false in .env\n2. Restart the app\n3. The browser will open — sign in manually\n4. Your session will be saved to the profile directory",
+        "additionalFields": {}
+      },
+      "id": "e5f6a7b8-0004-0004-0004-000000000009",
+      "name": "Send Relogin Instructions",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [840, 420],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger":   { "main": [[{ "node": "Parse Apply Command",    "type": "main", "index": 0 }]] },
+    "Parse Apply Command":{ "main": [[{ "node": "Route Apply",            "type": "main", "index": 0 }]] },
+    "Route Apply": {
+      "main": [
+        [{ "node": "Check Session Health",      "type": "main", "index": 0 }],
+        [{ "node": "Send Relogin Instructions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Session Health": { "main": [[{ "node": "Session Healthy?", "type": "main", "index": 0 }]] },
+    "Session Healthy?": {
+      "main": [
+        [{ "node": "Playwright Apply [STUB]", "type": "main", "index": 0 }],
+        [{ "node": "Alert: Session Unhealthy","type": "main", "index": 0 }]
+      ]
+    },
+    "Playwright Apply [STUB]": { "main": [[{ "node": "Send Apply Result", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "versionId": "phase4-v1.0.0",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "local-job-agent" },
+  "id": "workflow-phase4-apply",
+  "tags": [{ "name": "phase-4" }, { "name": "playwright" }, { "name": "apply" }]
+}

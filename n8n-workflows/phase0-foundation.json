@@ -1,0 +1,166 @@
+{
+  "name": "Phase 0 — Telegram Foundation",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [160, 300],
+      "webhookId": "phase0-tg-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "SETUP_REQUIRED",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg      = $input.item.json.message || {};\nconst text     = (msg.text || '').trim();\nconst chatId   = msg.chat?.id;\nconst username = msg.from?.first_name || msg.from?.username || 'User';\n\nlet command = 'unknown';\nif      (text.startsWith('/ping'))   command = 'ping';\nelse if (text.startsWith('/status')) command = 'status';\nelse if (text.startsWith('/help'))   command = 'help';\nelse if (text.startsWith('/'))       command = 'unknown_cmd';\n\nreturn { json: { command, chatId, username, originalText: text } };"
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000002",
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 300]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "ping",        "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "ping"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "status",      "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "status"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "help",        "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "help"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000003",
+      "name": "Route Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Command').item.json.chatId }}",
+        "text": "🏓 Pong! Bot is alive.",
+        "additionalFields": {}
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000004",
+      "name": "Send Pong",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [840, 120],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:{{ $env.PORT || '3000' }}/health",
+        "options": { "timeout": 6000 }
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000005",
+      "name": "Get Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const h    = $input.item.json;\nconst s    = h.stats             || {};\nconst sess = h.linkedin_session  || {};\nconst up   = h.uptime_seconds    || 0;\nconst emoji = { healthy:'✅', degraded:'⚠️', logged_out:'🔒', error:'❌', unknown:'❓' };\nconst sesE  = emoji[sess.status] || '❓';\n\nconst text = [\n  `<b>Job Application Agent — Status</b>`,\n  ``,\n  `Status: ${h.status === 'ok' ? '✅ Healthy' : '❌ Degraded'}`,\n  `Uptime: ${Math.floor(up/60)}m ${up%60}s   Phase: ${h.phase||0}`,\n  ``,\n  `<b>📊 Pipeline:</b>`,\n  `• Total jobs: <b>${s.total_jobs||0}</b>`,\n  `• New (unscored): ${s.new_jobs||0}`,\n  `• Scored: ${s.scored_jobs||0}`,\n  `• Applied: ${s.applied_jobs||0}`,\n  `• Pending approval: ${s.pending_approval||0}`,\n  ``,\n  `<b>🔗 LinkedIn Session:</b>`,\n  `${sesE} ${sess.status||'unknown'}`,\n  `Last check: ${sess.last_check||'Never'}`,\n  `Failures: ${sess.consecutive_failures||0}`,\n].join('\\n');\n\nreturn { json: { text, chatId: $('Parse Command').item.json.chatId } };"
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000006",
+      "name": "Format Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": { "parse_mode": "HTML" }
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000007",
+      "name": "Send Status",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1280, 300],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Command').item.json.chatId }}",
+        "text": "<b>Job Application Agent — Commands</b>\n\n<b>Phase 0 (Active):</b>\n/ping — Check bot is alive\n/status — System health and pipeline stats\n/help — This message\n\n<b>Phase 1 — Discovery:</b>\n/scan — Trigger LinkedIn job scan\n/topjobs — List top scored jobs\n\n<b>Phase 2 — Scoring:</b>\n/review &lt;job_id&gt; — Review job details and score\n\n<b>Phase 3 — Packages:</b>\n/approve &lt;app_id&gt; — Approve application\n/reject &lt;app_id&gt; — Reject application\n\n<b>Phase 4 — Apply:</b>\n/apply &lt;job_id&gt; — Playwright-assisted apply\n/relogin — Re-authenticate LinkedIn",
+        "additionalFields": { "parse_mode": "HTML" }
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000008",
+      "name": "Send Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [840, 460],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Command').item.json.chatId }}",
+        "text": "Unknown command. Send /help for the full list.",
+        "additionalFields": {}
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000009",
+      "name": "Send Unknown",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [840, 620],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": { "main": [[{ "node": "Parse Command",  "type": "main", "index": 0 }]] },
+    "Parse Command":    { "main": [[{ "node": "Route Command",  "type": "main", "index": 0 }]] },
+    "Route Command": {
+      "main": [
+        [{ "node": "Send Pong",   "type": "main", "index": 0 }],
+        [{ "node": "Get Health",  "type": "main", "index": 0 }],
+        [{ "node": "Send Help",   "type": "main", "index": 0 }],
+        [{ "node": "Send Unknown","type": "main", "index": 0 }]
+      ]
+    },
+    "Get Health":    { "main": [[{ "node": "Format Status", "type": "main", "index": 0 }]] },
+    "Format Status": { "main": [[{ "node": "Send Status",   "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "versionId": "phase0-v1.0.0",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "local-job-agent" },
+  "id": "workflow-phase0-foundation",
+  "tags": [{ "name": "phase-0" }, { "name": "telegram" }]
+}

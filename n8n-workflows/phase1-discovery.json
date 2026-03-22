@@ -1,0 +1,165 @@
+{
+  "name": "Phase 1 — LinkedIn Discovery",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [160, 300],
+      "webhookId": "phase1-tg-webhook",
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($input.item.json.message?.text || '').trim();\nconst chatId = $input.item.json.message?.chat?.id;\nlet command = 'passthrough';\nif (text.startsWith('/scan'))    command = 'scan';\nif (text.startsWith('/topjobs')) command = 'topjobs';\nreturn { json: { command, chatId, text } };"
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000002",
+      "name": "Parse Discovery Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 300]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "scan",    "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "scan"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "topjobs", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "topjobs"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000003",
+      "name": "Route Discovery",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Discovery Command').item.json.chatId }}",
+        "text": "🔍 LinkedIn scan started... This may take 1-2 minutes.",
+        "additionalFields": {}
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000004",
+      "name": "Ack Scan",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [840, 120],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:{{ $env.PORT || '3000' }}/api/events",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"event_type\": \"scan_requested\", \"payload\": { \"source\": \"telegram\" } }",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000005",
+      "name": "Log Scan Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1060, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── PHASE 1 IMPLEMENTATION PLACEHOLDER ──────────────────────────────\n// Replace this node with a Playwright-based LinkedIn scraper.\n// The scraper should:\n//   1. Navigate to LinkedIn job search with configured keywords/location\n//   2. Collect job cards: title, company, location, URL, posted_at\n//   3. POST each to GET http://localhost:3000/api/jobs for dedup+persist\n//   4. Return { scanned, new_jobs, duplicates }\n//\n// Until Phase 1 is built, this returns dummy data.\nreturn { json: { scanned: 0, new_jobs: 0, duplicates: 0, note: 'Phase 1 LinkedIn scraper not yet implemented' } };"
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000006",
+      "name": "Scan LinkedIn [STUB]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 120]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Discovery Command').item.json.chatId }}",
+        "text": "=✅ Scan complete!\n• Scanned: {{ $json.scanned }}\n• New jobs: {{ $json.new_jobs }}\n• Duplicates skipped: {{ $json.duplicates }}\n\nRun /topjobs to see the best matches.",
+        "additionalFields": {}
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000007",
+      "name": "Send Scan Result",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1500, 120],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:{{ $env.PORT || '3000' }}/api/jobs?status=scored&min_score={{ $env.MIN_FIT_SCORE_TO_APPLY || '70' }}&limit=10",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000008",
+      "name": "Fetch Top Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { jobs = [], total = 0 } = $input.item.json;\nconst chatId = $('Parse Discovery Command').item.json.chatId;\n\nif (jobs.length === 0) {\n  return { json: { text: '📭 No scored jobs yet. Run /scan first, then scoring will run automatically.', chatId } };\n}\n\nconst lines = ['<b>🏆 Top Scored Jobs</b>', ''];\njobs.slice(0, 10).forEach((j, i) => {\n  const score = j.fit_score !== null ? `${j.fit_score}/100` : 'unscored';\n  lines.push(`${i + 1}. <b>${j.title}</b> @ ${j.company}`);\n  lines.push(`   Score: ${score} | ${j.location || 'Remote'}`);\n  lines.push(`   /review ${j.id}`);\n  lines.push('');\n});\nlines.push(`Showing ${jobs.length} of ${total} total jobs.`);\n\nreturn { json: { text: lines.join('\\n'), chatId } };"
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000009",
+      "name": "Format Top Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": { "parse_mode": "HTML" }
+      },
+      "id": "b2c3d4e5-0001-0001-0001-000000000010",
+      "name": "Send Top Jobs",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1280, 400],
+      "credentials": { "telegramApi": { "id": "SETUP_REQUIRED", "name": "Telegram Bot API" } }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger":       { "main": [[{ "node": "Parse Discovery Command", "type": "main", "index": 0 }]] },
+    "Parse Discovery Command":{ "main": [[{ "node": "Route Discovery",         "type": "main", "index": 0 }]] },
+    "Route Discovery": {
+      "main": [
+        [{ "node": "Ack Scan",       "type": "main", "index": 0 }],
+        [{ "node": "Fetch Top Jobs", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ack Scan":          { "main": [[{ "node": "Log Scan Event",     "type": "main", "index": 0 }]] },
+    "Log Scan Event":    { "main": [[{ "node": "Scan LinkedIn [STUB]","type": "main", "index": 0 }]] },
+    "Scan LinkedIn [STUB]": { "main": [[{ "node": "Send Scan Result", "type": "main", "index": 0 }]] },
+    "Fetch Top Jobs":    { "main": [[{ "node": "Format Top Jobs",    "type": "main", "index": 0 }]] },
+    "Format Top Jobs":   { "main": [[{ "node": "Send Top Jobs",      "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "versionId": "phase1-v1.0.0",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "local-job-agent" },
+  "id": "workflow-phase1-discovery",
+  "tags": [{ "name": "phase-1" }, { "name": "linkedin" }, { "name": "discovery" }]
+}
