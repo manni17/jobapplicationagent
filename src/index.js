@@ -15,6 +15,14 @@ const logger                = require('./utils/logger');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+function validateCriticalConfig() {
+  const required = ['OPENROUTER_API_KEY', 'LLM_MODEL'];
+  const missing = required.filter((name) => !(process.env[name] || '').trim());
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variable(s): ${missing.join(', ')}`);
+  }
+}
+
 // ── Middleware ────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -39,6 +47,9 @@ app.use((err, _req, res, _next) => {
 // ── Boot ──────────────────────────────────────────────────────
 async function main() {
   try {
+    validateCriticalConfig();
+    logger.info('Critical config validated');
+
     initDatabase();
     logger.info('Database initialized');
 

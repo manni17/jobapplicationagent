@@ -7,6 +7,16 @@ const logger = require('../utils/logger');
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
+function requireLlmConfig() {
+  const apiKey = (process.env.OPENROUTER_API_KEY || '').trim();
+  const model = (process.env.LLM_MODEL || '').trim();
+
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
+  if (!model) throw new Error('LLM_MODEL not configured');
+
+  return { apiKey, model };
+}
+
 function candidateContext() {
   return {
     name:   process.env.CANDIDATE_NAME             || 'Candidate',
@@ -18,13 +28,12 @@ function candidateContext() {
 }
 
 async function callOpenRouter(messages, maxTokens) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
+  const { apiKey, model } = requireLlmConfig();
 
   const response = await axios.post(
     `${OPENROUTER_BASE}/chat/completions`,
     {
-      model:       process.env.LLM_MODEL || 'openai/gpt-4o-mini',
+      model,
       temperature: parseFloat(process.env.LLM_TEMPERATURE || '0.3'),
       max_tokens:  maxTokens,
       messages,
